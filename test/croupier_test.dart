@@ -161,4 +161,19 @@ void main() {
       await client.close();
     });
   });
+
+  group('Housekeeping', () {
+    test('Signal end of tests to server...', () async {
+      var client = SocketClusterClient(
+        hostname: 'localhost',
+        port: 3000,
+        ackTimeout: 500,
+      );
+
+      client.transmit('testFinish');
+      await client.close();
+
+      print('All done!');
+    });
+  });
 }

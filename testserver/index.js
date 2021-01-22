@@ -28,6 +28,27 @@ let agServer = socketClusterServer.attach(httpServer);
     })();
 
     (async () => {
+      for await (let data of socket.receiver('testFinish')) {
+        console.log("Tests done!");
+
+        await new Promise(resolve => setTimeout(resolve, 200));
+
+        if (process.env.CLOSE_ON_TEST_FINISH) {
+          console.log("Closing server...");
+          await new Promise((resolve, reject) => {
+            httpServer.close((er) => {
+              if (er) return reject();
+              resolve();
+            });
+          });
+
+          console.log("Exiting...");
+          process.exit(0);
+        }
+      }
+    })();
+
+    (async () => {
       // Set up a loop to handle remote transmitted events.
       for await (let data of socket.receiver('triggerTestRecv')) {
         socket.transmit('testRecv', '4aa78d81f5ff8f60de71c42c86a80b36');

@@ -476,7 +476,7 @@ class _SocketClusterClientImpl implements SocketClusterClient {
       _clearExpectedResponses();
 
       // Close the socket.
-      await _socket.close(code ?? 1000, reason);
+      if (_socket != null) await _socket.close(code ?? 1000, reason);
 
       // Allow socket time to close and trigger events before cleaning up.
       await Future.delayed(Duration(milliseconds: 10));
