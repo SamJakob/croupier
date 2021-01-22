@@ -112,10 +112,10 @@ class _SocketClusterClientImpl implements SocketClusterClient {
   /// The underlying WebSocket connection.
   WebSocket _socket;
 
-  //_MultiplexedStream _channelEventDemux;
-  //_MultiplexedStream _channelDataDemux;
-  //_MultiplexedStream _receiverDemux;
-  //_MultiplexedStream _procedureDemux;
+  _MultiplexedStream _eventsMultiplex;
+  _MultiplexedStream _receiveMultiplex;
+  _MultiplexedStream _invokeMultiplex;
+  //_MultiplexedStream _channelDemux;
 
   //**************************************************************************//
   //**************************************************************************//
@@ -148,7 +148,10 @@ class _SocketClusterClientImpl implements SocketClusterClient {
         _authToken = authToken,
         _clientId = clientId,
         _expectedResponses = {},
-        _outboundBuffer = Queue<Map<String, dynamic>>();
+        _outboundBuffer = Queue<Map<String, dynamic>>(),
+        _eventsMultiplex = _MultiplexedStream(),
+        _receiveMultiplex = _MultiplexedStream(),
+        _invokeMultiplex = _MultiplexedStream();
 
   @override
   Future connect() async {
@@ -158,16 +161,19 @@ class _SocketClusterClientImpl implements SocketClusterClient {
       ));
     }
 
+    _eventsMultiplex ??= _MultiplexedStream();
+    _invokeMultiplex ??= _MultiplexedStream();
+    _receiveMultiplex ??= _MultiplexedStream();
     //_channelEventDemux = _MultiplexedStream();
     //_channelDataDemux = _MultiplexedStream();
     //_receiverDemux = _MultiplexedStream();
-    //_procedureDemux = _MultiplexedStream();
 
     bool _connected = false;
     while (!_connected) {
       _cid = -1;
       _reconnectAttemptsMade = 0;
       _state = ConnectionState.CONNECTING;
+      _emit(SCEvent.CONNECTING);
 
       try {
         _socket = await WebSocket.connect(
@@ -176,12 +182,12 @@ class _SocketClusterClientImpl implements SocketClusterClient {
           headers: headers,
         ).timeout(Duration(milliseconds: connectTimeout), onTimeout: () {
           _onSocketClose();
-          throw Exception('Connect timed out after ${connectTimeout}ms');
+          throw ConnectTimeoutError(
+              'Connect timed out after ${connectTimeout}ms');
         });
       } catch (_) {
         await _reconnectDelay();
         continue;
-        // return;
       }
 
       _socket.listen(
@@ -206,9 +212,11 @@ class _SocketClusterClientImpl implements SocketClusterClient {
     _pingInterval = status['pingTimeout'];
     if (status['isAuthenticated']) {
       _authState = AuthenticationState.AUTHENTICATED;
+      _emit(SCEvent.AUTH_STATE_CHANGE);
     } else {
       _authState = AuthenticationState.UNAUTHENTICATED;
       _authToken = null;
+      _emit(SCEvent.AUTH_STATE_CHANGE);
     }
     _reconnectAttemptsMade = 0;
 
@@ -217,29 +225,61 @@ class _SocketClusterClientImpl implements SocketClusterClient {
   }
 
   void _onSocketMessage(dynamic message) {
-    try {
-      // Handle ping
-      if (message == '') {
-        send('');
-        return;
-      }
+    // Handle message
+    _emitEvent('message', message.toString());
 
+    // Handle ping
+    if (message == '') {
+      send('');
+      return;
+    }
+
+    // Handle list
+    if (message is List) {
+      message.forEach((element) {
+        _onSocketMessage(element);
+      });
+
+      return;
+    }
+
+    try {
       // Handle packet
       var packet = jsonDecode(message);
 
-      if (packet['rid'] != null) {
-        if (packet['error'] != null) {
-          _expectedResponses[packet['rid']].completeError(
-            SocketMessageError(packet['error'],
-                name: packet['error']['name'],
-                message: packet['error']['message']),
-          );
+      if (packet['event'] != null) {
+        if (packet['cid'] != null) {
+          _emitInvoke(packet['event'], packet);
         } else {
-          _expectedResponses[packet['rid']].complete(packet['data']);
+          _emitReceive(packet['event'], packet);
         }
+
+        return;
       }
-    } catch (ex) {
-      // TODO: emit raw
+
+      if (packet['rid'] != null) {
+        if (_expectedResponses.containsKey(packet['rid'])) {
+          if (packet['error'] != null) {
+            _expectedResponses[packet['rid']].completeError(
+              SocketMessageError(
+                packet['error'],
+                name: packet['error']['name'],
+                message: packet['error']['message'],
+              ),
+            );
+          } else {
+            _expectedResponses[packet['rid']].complete(packet['data']);
+          }
+        }
+
+        return;
+      }
+
+      _emitEvent('raw', message);
+    } catch (ex, stacktrace) {
+      print('Error handling message: $message');
+      print(ex);
+      print(stacktrace);
     }
   }
 
@@ -247,7 +287,7 @@ class _SocketClusterClientImpl implements SocketClusterClient {
 
   void _onSocketClose() {
     var code = _socket.closeCode;
-    _cleanUp();
+    _emit(SCEvent.DISCONNECT);
 
     if (reconnectPolicy.autoReconnect) {
       // 1005 - close without status
@@ -289,14 +329,24 @@ class _SocketClusterClientImpl implements SocketClusterClient {
   }
 
   void _cleanUp() {
+    _authState = AuthenticationState.UNAUTHENTICATED;
+    _emit(SCEvent.AUTH_STATE_CHANGE);
+
     _outboundBuffer.clear();
     _state = ConnectionState.CLOSED;
-    _authState = AuthenticationState.UNAUTHENTICATED;
 
     //_channelEventDemux.close();
     //_channelDataDemux.close();
     //_receiverDemux.close();
-    //_procedureDemux.close();
+
+    _eventsMultiplex.close();
+    _eventsMultiplex = null;
+
+    _receiveMultiplex.close();
+    _receiveMultiplex = null;
+
+    _invokeMultiplex.close();
+    _invokeMultiplex = null;
   }
 
   //**************************************************************************//
@@ -336,10 +386,102 @@ class _SocketClusterClientImpl implements SocketClusterClient {
   }
 
   @override
+  StreamSubscription on(SCEvent event, Function callback) {
+    return _eventsMultiplex.subscribeToChannel(event.name, (event) {
+      try {
+        if (callback != null) callback();
+      } catch (ex, stacktrace) {
+        print('An error occurred whilst processing a $event event.');
+        print(ex);
+        print(stacktrace);
+      }
+    });
+  }
+
+  @override
+  StreamSubscription onRaw(Function(String data) callback) {
+    return _eventsMultiplex.subscribeToChannel('raw', (event) {
+      try {
+        if (callback != null) callback(event.event.toString());
+      } catch (ex, stacktrace) {
+        print('An error occurred whilst processing a raw event.');
+        print(ex);
+        print(stacktrace);
+      }
+    });
+  }
+
+  @override
+  StreamSubscription onMessage(Function(String data) callback) {
+    return _eventsMultiplex.subscribeToChannel('message', (event) {
+      try {
+        if (callback != null) callback(event.event.toString());
+      } catch (ex, stacktrace) {
+        print('An error occurred whilst processing a raw event.');
+        print(ex);
+        print(stacktrace);
+      }
+    });
+  }
+
+  @override
+  StreamSubscription registerReceiver(
+    String name,
+    Function(dynamic data) callback,
+  ) {
+    return _receiveMultiplex.subscribeToChannel(name, (
+      dynamic event,
+    ) {
+      try {
+        if (callback != null) callback(event.event);
+      } catch (ex, stacktrace) {
+        print('An error occurred whilst processing a raw event.');
+        print(ex);
+        print(stacktrace);
+      }
+    });
+  }
+
+  @override
+  StreamSubscription registerProcedure(
+    String name,
+    Function(dynamic data) callback,
+  ) {
+    return _invokeMultiplex.subscribeToChannel(name, (event) async {
+      int rid = event.event['cid'];
+
+      try {
+        if (callback != null) {
+          var response = await callback(event.event);
+
+          await _processOutboundEvent(
+            null,
+            response,
+            const Options(),
+            rid,
+          );
+        }
+      } catch (ex, stacktrace) {
+        print('An error occurred whilst processing a raw event.');
+        print(ex);
+        print(stacktrace);
+      }
+    });
+  }
+
+  @override
   Future<void> close([int code, String reason]) async {
     if (_state != ConnectionState.CLOSED) {
+      _emit(SCEvent.CLOSE);
       _clearExpectedResponses();
+
+      // Close the socket.
       await _socket.close(code ?? 1000, reason);
+
+      // Allow socket time to close and trigger events before cleaning up.
+      await Future.delayed(Duration(milliseconds: 10));
+
+      // Clean up.
       _cleanUp();
     }
   }
@@ -353,6 +495,7 @@ class _SocketClusterClientImpl implements SocketClusterClient {
     String event,
     dynamic data, [
     Options options = const Options(),
+    int rid,
   ]) async {
     if (state == ConnectionState.CLOSED) {
       await connect();
@@ -360,9 +503,12 @@ class _SocketClusterClientImpl implements SocketClusterClient {
 
     data ??= {};
 
-    var cid = ++_cid;
+    var cid;
+    if (options.expectResponse) cid = ++_cid;
+
     var outboundPacket = <String, dynamic>{
-      'cid': options.expectResponse ? cid : null,
+      'cid': cid,
+      'rid': rid,
       'event': event,
       'data': (data is Map && options.cloneData) ? {...data} : data,
     };
@@ -421,8 +567,19 @@ class _SocketClusterClientImpl implements SocketClusterClient {
     }
   }
 
-  @override
-  Future<void> disconnect([int code, String reason]) {
-    return close(code, reason);
+  void _emit(SCEvent event) {
+    _eventsMultiplex.addToChannel(event.name, null);
+  }
+
+  void _emitEvent(String event, [dynamic data]) {
+    _eventsMultiplex.addToChannel(event, data);
+  }
+
+  void _emitReceive(String event, dynamic data) {
+    _receiveMultiplex.addToChannel(event, data);
+  }
+
+  void _emitInvoke(String event, dynamic data) {
+    _invokeMultiplex.addToChannel(event, data);
   }
 }

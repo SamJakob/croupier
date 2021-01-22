@@ -11,12 +11,6 @@ let agServer = socketClusterServer.attach(httpServer);
     console.log(`Socket ${socket.id} connected.`);
 
     (async () => {
-      // Set up a loop to handle remote transmitted events.
-      for await (let data of socket.receiver('customRemoteEvent')) {
-        console.log("custom...");
-        // ...
-      }
-
       for await (let data of socket.receiver('shutdown')) {
         console.log("Shutdown command issued...");
 
@@ -27,7 +21,25 @@ let agServer = socketClusterServer.attach(httpServer);
           });
         });
 
-        process.exit(0);
+        console.log("Restarting...");
+        await httpServer.listen(3000);
+        console.log("Server listening on localhost:3000");
+      }
+    })();
+
+    (async () => {
+      // Set up a loop to handle remote transmitted events.
+      for await (let data of socket.receiver('triggerTestRecv')) {
+        socket.transmit('testRecv', '4aa78d81f5ff8f60de71c42c86a80b36');
+      }
+    })();
+
+    (async () => {
+      // Set up a loop to handle remote transmitted events.
+      for await (let data of socket.receiver('triggerTestInvk')) {
+        let response = await socket.invoke('testInvk');
+        console.log(response);
+        socket.transmit('testInvkResult', response);
       }
     })();
 

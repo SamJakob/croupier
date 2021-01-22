@@ -43,7 +43,6 @@ void main() {
       await Future.delayed(Duration(milliseconds: 200));
 
       print('Done!');
-      print('Please restart server to continue unit tests.');
     });
 
     test('Client closes after implicit connect call', () async {
@@ -54,7 +53,7 @@ void main() {
     });
   });
 
-  group('Procedure calls', () {
+  group('Remote Procedure Calls (RPC)', () {
     SocketClusterClient client;
 
     setUpAll(() {
@@ -90,7 +89,56 @@ void main() {
     });
   });
 
-  group('Transmit calls', () {});
+  group('Local Procedure Calls (Server -> Client)', () {
+    SocketClusterClient client;
+
+    setUpAll(() async {
+      client = SocketClusterClient(
+        hostname: 'localhost',
+        port: 3000,
+        ackTimeout: 500,
+      );
+    });
+
+    test('Local receive', () async {
+      var completer = Completer();
+
+      client.registerReceiver(
+        'testRecv',
+        (data) => {
+          completer.complete(data['data']),
+        },
+      );
+
+      client.transmit('triggerTestRecv');
+
+      expect(completer.future,
+          completion(equals('4aa78d81f5ff8f60de71c42c86a80b36')));
+    });
+
+    test('Local invoke', () {
+      var completer = Completer();
+
+      client.registerReceiver(
+        'testInvkResult',
+        (data) => {
+          completer.complete(data['data']),
+        },
+      );
+
+      client.registerProcedure('testInvk', (data) {
+        print('hello from the other side');
+        return 'hello from the other side';
+      });
+
+      client.transmit('triggerTestInvk');
+      expect(completer.future, completion(equals('hello from the other side')));
+    });
+
+    tearDownAll(() async {
+      await client.close();
+    });
+  });
 
   group('Raw data', () {
     SocketClusterClient client;

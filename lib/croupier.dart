@@ -24,6 +24,45 @@ enum AuthenticationState {
   AUTHENTICATED,
 }
 
+enum SCEvent {
+  /// Emitted whenever the socket initiates a connection to the server. This
+  /// includes reconnects.
+  CONNECTING,
+
+  /// Emitted whenever the socket disconnects or becomes disconnected from the
+  /// server. One can read the [SocketClusterClient.closeCode] and the
+  /// [SocketClusterClient.closeReason] from the socket to determine the close
+  /// code and reason.
+  DISCONNECT,
+
+  /// Emitted when the socket is programmatically closed with a call to
+  /// [SocketClusterClient.close]. This is triggered right before the socket
+  /// closes unlike [SCEvent.DISCONNECT] which is triggered right after the
+  /// close is processed.
+  CLOSE,
+
+  /// Emitted whenever the authentication state changes. The new authentication
+  /// state may be read from [SocketClusterClient.authState].
+  AUTH_STATE_CHANGE,
+}
+
+extension SCEventName on SCEvent {
+  String get name {
+    switch (this) {
+      case SCEvent.CONNECTING:
+        return 'connecting';
+      case SCEvent.DISCONNECT:
+        return 'disconnect';
+      case SCEvent.CLOSE:
+        return 'close';
+      case SCEvent.AUTH_STATE_CHANGE:
+        return 'authStateChange';
+      default:
+        return null;
+    }
+  }
+}
+
 abstract class SocketClusterClient {
   /// The hostname of the WebSocket URL to connect to.
   String get hostname;
@@ -163,6 +202,48 @@ abstract class SocketClusterClient {
     Options options = const Options(expectResponse: true),
   ]);
 
+  /// Registers [callback] as an event handler for [event].
+  ///
+  /// To cancel the callback, you can call `.cancel` on the returned
+  /// [StreamSubscription].
+  StreamSubscription on(SCEvent event, Function callback);
+
+  /// Registers [callback] as an event handler for the raw event - which is
+  /// triggered whenever the server socket calls `socket.send(...)`. The object
+  /// produced will have a 'message' property.
+  ///
+  /// THIS WILL NOT BE CALLED IF THE DATA CANNOT BE JSON-DECODED. You will need
+  /// to use [onMessage] for that.
+  ///
+  /// To cancel the callback, you can call `.cancel` on the returned
+  /// [StreamSubscription].
+  StreamSubscription onRaw(Function(String data) callback);
+
+  /// Registers [callback] as an event handler for the message event - which is
+  /// triggered whenever a message is emitted through the socket.
+  ///
+  /// To cancel the callback, you can call `.cancel` on the returned
+  /// [StreamSubscription].
+  StreamSubscription onMessage(Function(String message) callback);
+
+  /// Registers [callback] as a handler for the server-side transmitted event
+  /// of [name]. This is essentially the reverse of the [transmit] function,
+  /// i.e. when the server calls `.transmit(...)` on the client, this function's
+  /// callback is called.
+  StreamSubscription registerReceiver(
+    String name,
+    Function(dynamic data) callback,
+  );
+
+  /// Registers [callback] as a handler for the server-side transmitted remote
+  /// procedure call (RPC) of [name]. This is essentially the reverse of the
+  /// [invoke] function, i.e. when the server calls `.invoke(...)` on the
+  /// client, this function's callback is called.
+  StreamSubscription registerProcedure(
+    String name,
+    Function(dynamic data) callback,
+  );
+
   /// Cleans up local data about the socket and explicitly closes the connection
   /// to the server ensuring that the client does not attempt to automatically
   /// reconnect.
@@ -170,11 +251,6 @@ abstract class SocketClusterClient {
   /// [code] is `1000` by default indicating normal closure and [reason] is null
   /// by default.
   Future<void> close([int code, String reason]);
-
-  /// An alias of [close].
-  Future<void> disconnect([int code, String reason]) {
-    return close(code, reason);
-  }
 }
 
 class Options {
@@ -206,6 +282,14 @@ class Options {
         ackTimeout: ackTimeout ?? this.ackTimeout,
         noTimeout: noTimeout ?? this.noTimeout,
       );
+}
+
+class ConnectTimeoutError extends Error {
+  final String message;
+  ConnectTimeoutError(this.message);
+
+  @override
+  String toString() => 'Connect Timeout Error: $message';
 }
 
 class NetworkError extends Error {

@@ -26,23 +26,24 @@ class _MultiplexedStream<T> {
       _streamBackpressure.values.reduce((sum, element) => sum + element);
 
   int getListenerCountForChannel(String channel) =>
-      _streamListenerCount[channel];
+      _streamListenerCount.containsKey(channel) ? [channel] : 0;
 
-  int getTotalListenerCount() =>
-      _streamListenerCount.values.reduce((sum, element) => sum + element);
+  int getTotalListenerCount() => _streamListenerCount.values.isEmpty
+      ? 0
+      : _streamListenerCount.values.reduce((sum, element) => sum + element);
 
   /// Creates a multiplexed stream with no existing [StreamSink] sources,
   /// allowing for data to be added to the stream directly using [add],
   /// [addToChannel], [addError] and [addErrorToChannel].
   _MultiplexedStream()
       : sourceStream = null,
-        _streamController = StreamController(),
+        _streamController = StreamController.broadcast(),
         _streamListenerCount = {},
         _streamBackpressure = {};
 
   _MultiplexedStream.fromSource({
     @required this.sourceStream,
-  })  : _streamController = StreamController(),
+  })  : _streamController = StreamController.broadcast(),
         _streamListenerCount = {},
         _streamBackpressure = {} {
     _streamController.addStream(sourceStream, cancelOnError: false);
@@ -87,7 +88,7 @@ class _MultiplexedStream<T> {
 
   /// Subscribes to the global event stream meaning only global events will be
   /// forwarded to this subscription.
-  StreamSubscription subscribe(void Function(_ChanneledEvent<T> event) onData,
+  StreamSubscription subscribe(void Function(dynamic event) onData,
       {Function onError, void Function() onDone, bool cancelOnError}) {
     return subscribeToChannel(
       null,
@@ -102,7 +103,7 @@ class _MultiplexedStream<T> {
   /// events **and** the events for the specified channel will be forwarded
   /// to this subscription.
   StreamSubscription subscribeToChannel(
-      String channel, void Function(_ChanneledEvent<T> event) onData,
+      String channel, void Function(dynamic event) onData,
       {Function onError, void Function() onDone, bool cancelOnError}) {
     _registerStreamSubscription(channel);
 
@@ -110,7 +111,7 @@ class _MultiplexedStream<T> {
       (event) async {
         if (event is _ChanneledEvent) {
           if (event.channel == channel || event.channel == null) {
-            await onData(event.event);
+            await onData(event);
             _releaseStreamBackpressure(channel);
           }
 
@@ -123,18 +124,18 @@ class _MultiplexedStream<T> {
       onError: (error, [StackTrace stackTrace]) async {
         if (error is _ChanneledError) {
           if (error.channel == channel || error.channel == null) {
-            await onError(error.error, error.stackTrace);
+            if (onError != null) await onError(error, error.stackTrace);
             _releaseStreamBackpressure(channel);
           }
 
           return;
         }
 
-        await onError(error, stackTrace);
+        if (onError != null) await onError(error, stackTrace);
         _releaseStreamBackpressure(null);
       },
       onDone: () async {
-        await onDone();
+        if (onDone != null) await onDone();
         _unregisterStreamSubscription(channel);
       },
       cancelOnError: cancelOnError,
@@ -186,8 +187,8 @@ class _MultiplexedStream<T> {
     _streamBackpressure[channel] = max(0, _streamBackpressure[channel] - 1);
   }
 
-  void close() {
-    _streamController.close();
+  Future<void> close() async {
+    await _streamController.close();
   }
 }
 
