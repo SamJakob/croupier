@@ -41,13 +41,13 @@ class _MultiplexedStream<T> {
         _streamListenerCount = {},
         _streamBackpressure = {};
 
-  _MultiplexedStream.fromSource({
+  /*_MultiplexedStream.fromSource({
     @required this.sourceStream,
   })  : _streamController = StreamController.broadcast(),
         _streamListenerCount = {},
         _streamBackpressure = {} {
     _streamController.addStream(sourceStream, cancelOnError: false);
-  }
+  }*/
 
   /// Adds a data [event] to the global channel meaning all subscribers,
   /// regardless of their channel will receive this event.

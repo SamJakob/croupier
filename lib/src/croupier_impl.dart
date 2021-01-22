@@ -1,7 +1,7 @@
 part of croupier;
 
 class _SocketClusterClientImpl implements SocketClusterClient {
-  static const SC_PROTOCOL_VERSION = 2;
+  // static const SC_PROTOCOL_VERSION = 2;
 
   //**************************************************************************//
   //**************************************************************************//
