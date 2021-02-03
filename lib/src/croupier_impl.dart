@@ -56,12 +56,21 @@ class _SocketClusterClientImpl implements SocketClusterClient {
   final String _clientId;
 
   @override
-  ConnectionState get state => _state;
-  ConnectionState _state = ConnectionState.CLOSED;
+  ConnectionState get state => __state;
+  ConnectionState __state = ConnectionState.CLOSED;
+  // Internal setter for connection state, to emit the relevant event.
+  set _state(ConnectionState _state) {
+    __state = _state;
+    _emit(SCEvent.CONNECTION_STATE_CHANGE);
+  }
 
   @override
-  AuthenticationState get authState => _authState;
-  AuthenticationState _authState = AuthenticationState.UNAUTHENTICATED;
+  AuthenticationState get authState => __authState;
+  AuthenticationState __authState = AuthenticationState.UNAUTHENTICATED;
+  // Internal setter for connection state, to emit the relevant event.
+  set _authState(AuthenticationState _authState) {
+    __authState = _authState;
+  }
 
   @override
   int get pingInterval => _pingInterval;
@@ -155,7 +164,7 @@ class _SocketClusterClientImpl implements SocketClusterClient {
 
   @override
   Future connect() async {
-    if (_state != ConnectionState.CLOSED) {
+    if (__state != ConnectionState.CLOSED) {
       return Future.error(StateError(
         "Socket already open. This error occurs when you call .connect() on a socket that's already open.",
       ));
@@ -168,7 +177,7 @@ class _SocketClusterClientImpl implements SocketClusterClient {
     //_channelDataDemux = _MultiplexedStream();
     //_receiverDemux = _MultiplexedStream();
 
-    bool _connected = false;
+    var _connected = false;
     while (!_connected) {
       _cid = -1;
       _reconnectAttemptsMade = 0;
@@ -196,6 +205,7 @@ class _SocketClusterClientImpl implements SocketClusterClient {
         onDone: _onSocketClose,
         cancelOnError: false,
       );
+
       await _onSocketOpen();
       _connected = true;
     }
@@ -212,15 +222,14 @@ class _SocketClusterClientImpl implements SocketClusterClient {
     _pingInterval = status['pingTimeout'];
     if (status['isAuthenticated']) {
       _authState = AuthenticationState.AUTHENTICATED;
-      _emit(SCEvent.AUTH_STATE_CHANGE);
     } else {
       _authState = AuthenticationState.UNAUTHENTICATED;
       _authToken = null;
-      _emit(SCEvent.AUTH_STATE_CHANGE);
     }
     _reconnectAttemptsMade = 0;
 
     _state = ConnectionState.OPEN;
+    _emit(SCEvent.CONNECTED);
     _flushOutboundBuffer();
   }
 
@@ -330,7 +339,6 @@ class _SocketClusterClientImpl implements SocketClusterClient {
 
   void _cleanUp() {
     _authState = AuthenticationState.UNAUTHENTICATED;
-    _emit(SCEvent.AUTH_STATE_CHANGE);
 
     _outboundBuffer.clear();
     _state = ConnectionState.CLOSED;
@@ -471,7 +479,7 @@ class _SocketClusterClientImpl implements SocketClusterClient {
 
   @override
   Future<void> close([int code, String reason]) async {
-    if (_state != ConnectionState.CLOSED) {
+    if (__state != ConnectionState.CLOSED) {
       _emit(SCEvent.CLOSE);
       _clearExpectedResponses();
 

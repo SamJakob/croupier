@@ -29,6 +29,10 @@ enum SCEvent {
   /// includes reconnects.
   CONNECTING,
 
+  /// Emitted whenever the socket connection to the server is established. This
+  /// includes reconnects.
+  CONNECTED,
+
   /// Emitted whenever the socket disconnects or becomes disconnected from the
   /// server. One can read the [SocketClusterClient.closeCode] and the
   /// [SocketClusterClient.closeReason] from the socket to determine the close
@@ -44,6 +48,10 @@ enum SCEvent {
   /// Emitted whenever the authentication state changes. The new authentication
   /// state may be read from [SocketClusterClient.authState].
   AUTH_STATE_CHANGE,
+
+  /// Emitted whenever the connection state changes. The new connection state
+  /// may be read from [SocketClusterClient.state].
+  CONNECTION_STATE_CHANGE,
 }
 
 extension SCEventName on SCEvent {
