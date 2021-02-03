@@ -1,6 +1,6 @@
 name: croupier
 description: A custom SocketCluster client implementation for Dart and Flutter.
-version: 1.0.0+1
+version: 1.0.1
 repository: https://github.com/SamJakob/croupier
 
 environment:
