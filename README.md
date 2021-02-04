@@ -1,7 +1,8 @@
 # Croupier
-A custom SocketCluster client implementation for Dart and Flutter, designed to closely reflect the [SocketCluster JavaScript client](https://github.com/SocketCluster/socketcluster-client)'s API.
 
 ![Run Tests](https://github.com/SamJakob/croupier/workflows/Run%20Tests/badge.svg) ![MIT License](https://img.shields.io/github/license/SamJakob/croupier) ![GitHub issues](https://img.shields.io/github/issues/SamJakob/croupier)
+
+A custom SocketCluster client implementation for Dart and Flutter, designed to closely reflect the [SocketCluster JavaScript client](https://github.com/SocketCluster/socketcluster-client)'s API.
 
 Released under an [MIT license][license]. 
 Feel free to use or adapt this code as you want, though if you do,
