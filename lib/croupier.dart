@@ -29,9 +29,9 @@ enum SCEvent {
   /// includes reconnects.
   CONNECTING,
 
-  /// Emitted whenever the socket connection to the server is established. This
-  /// includes reconnects.
-  CONNECTED,
+  /// Emitted whenever the socket connection to the server is established and
+  /// the SocketCluster handshake has completed. This includes reconnects.
+  READY,
 
   /// Emitted whenever the socket disconnects or becomes disconnected from the
   /// server. One can read the [SocketClusterClient.closeCode] and the
@@ -59,12 +59,16 @@ extension SCEventName on SCEvent {
     switch (this) {
       case SCEvent.CONNECTING:
         return 'connecting';
+      case SCEvent.READY:
+        return 'ready';
       case SCEvent.DISCONNECT:
         return 'disconnect';
       case SCEvent.CLOSE:
         return 'close';
       case SCEvent.AUTH_STATE_CHANGE:
         return 'authStateChange';
+      case SCEvent.CONNECTION_STATE_CHANGE:
+        return 'connectionStateChange';
       default:
         return null;
     }

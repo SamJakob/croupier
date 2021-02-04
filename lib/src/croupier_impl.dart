@@ -158,7 +158,7 @@ class _SocketClusterClientImpl implements SocketClusterClient {
         _clientId = clientId,
         _expectedResponses = {},
         _outboundBuffer = Queue<Map<String, dynamic>>(),
-        _eventsMultiplex = _MultiplexedStream(),
+        _eventsMultiplex = _MultiplexedStream(allowGlobalChannel: false),
         _receiveMultiplex = _MultiplexedStream(),
         _invokeMultiplex = _MultiplexedStream();
 
@@ -170,7 +170,7 @@ class _SocketClusterClientImpl implements SocketClusterClient {
       ));
     }
 
-    _eventsMultiplex ??= _MultiplexedStream();
+    _eventsMultiplex ??= _MultiplexedStream(allowGlobalChannel: false);
     _invokeMultiplex ??= _MultiplexedStream();
     _receiveMultiplex ??= _MultiplexedStream();
     //_channelEventDemux = _MultiplexedStream();
@@ -185,7 +185,7 @@ class _SocketClusterClientImpl implements SocketClusterClient {
       _emit(SCEvent.CONNECTING);
 
       try {
-        _socket = await WebSocket.connect(
+        _socket = await (WebSocket.connect(
           url,
           protocols: protocols,
           headers: headers,
@@ -193,7 +193,9 @@ class _SocketClusterClientImpl implements SocketClusterClient {
           _onSocketClose();
           throw ConnectTimeoutError(
               'Connect timed out after ${connectTimeout}ms');
-        });
+        }));
+
+        _connected = true;
       } catch (_) {
         await _reconnectDelay();
         continue;
@@ -207,7 +209,6 @@ class _SocketClusterClientImpl implements SocketClusterClient {
       );
 
       await _onSocketOpen();
-      _connected = true;
     }
   }
 
@@ -229,7 +230,7 @@ class _SocketClusterClientImpl implements SocketClusterClient {
     _reconnectAttemptsMade = 0;
 
     _state = ConnectionState.OPEN;
-    _emit(SCEvent.CONNECTED);
+    _emit(SCEvent.READY);
     _flushOutboundBuffer();
   }
 

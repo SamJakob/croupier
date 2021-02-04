@@ -4,6 +4,24 @@ import 'package:croupier/croupier.dart';
 import 'package:test/test.dart';
 
 void main() {
+  group('Smoke test', () {
+    test('All events have names defined', () {
+      var definedNames = [];
+
+      for (var event in SCEvent.values) {
+        if (event.name == null) {
+          fail('$event does not have a unique event name defined.');
+        }
+
+        if (definedNames.contains(event.name)) {
+          fail("$event's name has already been defined!");
+        }
+
+        definedNames.add(event.name);
+      }
+    });
+  });
+
   group('Basic tests', () {
     SocketClusterClient client;
 
