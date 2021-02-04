@@ -7,9 +7,6 @@ Released under an [MIT license][license].
 Feel free to use or adapt this code as you want, though if you do,
 please credit me your README or something.
 
-## Dart API Documentation
-Auto-generated API documentation is available at: https://pub.dev/documentation/croupier/latest/
-
 ## Usage
 You can install it using the package on [pub.dev](https://pub.dev/packages/croupier) - by adding the latest version to your project's `pubspec.yaml` (instructions on the linked pub.dev page).
 
@@ -41,7 +38,10 @@ void main() async {
 }
 ```
 
-For more examples, please see the [project wiki][wiki].
+For more examples and guides, please see the [project wiki][wiki].
+
+## Dart API Documentation
+Auto-generated API documentation is available at: https://pub.dev/documentation/croupier/latest/
 
 ## Features and bugs
 Please file feature requests and bugs at the [issue tracker][tracker].
