@@ -10,23 +10,18 @@ part of croupier;
 /// be transformed to [_ChanneledEvent] with the channel specified and all
 /// errors must be transformed to [_ChanneledError].
 class _MultiplexedStream<T> {
-  static const GLOBAL_CHANNEL = '_global';
+  static const kGlobalChannel = '_global';
 
-  final Stream<T> sourceStream;
+  final Stream<T>? sourceStream;
   final StreamController _streamController;
 
   final Map<String, int> _streamListenerCount;
 
   final bool allowGlobalChannel;
 
-  int getListenerCountForChannel(String channel) =>
-      _streamListenerCount.containsKey(channel)
-          ? _streamListenerCount[channel]
-          : 0;
+  int getListenerCountForChannel(String channel) => _streamListenerCount.containsKey(channel) ? _streamListenerCount[channel]! : 0;
 
-  int getTotalListenerCount() => _streamListenerCount.values.isEmpty
-      ? 0
-      : _streamListenerCount.values.reduce((sum, element) => sum + element);
+  int getTotalListenerCount() => _streamListenerCount.values.isEmpty ? 0 : _streamListenerCount.values.reduce((sum, element) => sum + element);
 
   /// Creates a multiplexed stream with no existing [StreamSink] sources,
   /// allowing for data to be added to the stream directly using [add],
@@ -51,7 +46,7 @@ class _MultiplexedStream<T> {
 
   /// Adds a data [event] to the specified [channel] meaning only subscribers
   /// for the specified channel will receive this event.
-  void addToChannel(String channel, T event) {
+  void addToChannel(String? channel, T event) {
     if (channel == null && !allowGlobalChannel) return;
 
     if (channel != null) {
@@ -63,14 +58,13 @@ class _MultiplexedStream<T> {
 
   /// Adds an [error] to the global channel meaning all subscribers, regardless
   /// of their channel will receive this error.
-  void addError(Object error, [StackTrace stackTrace]) {
+  void addError(Object error, [StackTrace? stackTrace]) {
     addErrorToChannel(null, error, stackTrace);
   }
 
   /// Adds an [error] to the specified [channel] meaning only subscribers for
   /// the specified channel will receive this error.
-  void addErrorToChannel(String channel, Object error,
-      [StackTrace stackTrace]) {
+  void addErrorToChannel(String? channel, Object error, [StackTrace? stackTrace]) {
     if (channel == null && !allowGlobalChannel) return;
 
     if (channel != null) {
@@ -82,8 +76,7 @@ class _MultiplexedStream<T> {
 
   /// Subscribes to the global event stream meaning only global events will be
   /// forwarded to this subscription.
-  StreamSubscription subscribe(void Function(dynamic event) onData,
-      {Function onError, void Function() onDone, bool cancelOnError}) {
+  StreamSubscription subscribe(Future<void> Function(dynamic event) onData, {Function? onError, Future<void> Function()? onDone, bool? cancelOnError}) {
     return subscribeToChannel(
       null,
       onData,
@@ -96,16 +89,14 @@ class _MultiplexedStream<T> {
   /// Subscribes to the event stream for the specified [channel], meaning global
   /// events **and** the events for the specified channel will be forwarded
   /// to this subscription.
-  StreamSubscription subscribeToChannel(
-      String channel, void Function(dynamic event) onData,
-      {Function onError, void Function() onDone, bool cancelOnError}) {
+  StreamSubscription subscribeToChannel(String? channel, Future<void> Function(dynamic event) onData,
+      {Function? onError, Future<void> Function()? onDone, bool? cancelOnError}) {
     _registerStreamSubscription(channel);
 
     return _streamController.stream.listen(
       (event) async {
         if (event is _ChanneledEvent) {
-          if (event.channel == channel ||
-              (event.channel == null && allowGlobalChannel)) {
+          if (event.channel == channel || (event.channel == null && allowGlobalChannel)) {
             await onData(event);
           }
 
@@ -114,10 +105,9 @@ class _MultiplexedStream<T> {
 
         await onData(event);
       },
-      onError: (error, [StackTrace stackTrace]) async {
+      onError: (error, [StackTrace? stackTrace]) async {
         if (error is _ChanneledError) {
-          if (error.channel == channel ||
-              (error.channel == null && allowGlobalChannel)) {
+          if (error.channel == channel || (error.channel == null && allowGlobalChannel)) {
             if (onError != null) await onError(error, error.stackTrace);
           }
 
@@ -134,27 +124,27 @@ class _MultiplexedStream<T> {
     );
   }
 
-  void _registerStreamSubscription(String channel) {
+  void _registerStreamSubscription(String? channel) {
     if (channel == null && !allowGlobalChannel) return;
-    channel ??= GLOBAL_CHANNEL;
+    channel ??= kGlobalChannel;
 
     _streamListenerCount.putIfAbsent(channel, () => 0);
-    _streamListenerCount[channel]++;
+    _streamListenerCount[channel] = _streamListenerCount[channel]! + 1;
   }
 
-  void _unregisterStreamSubscription(String channel) {
+  void _unregisterStreamSubscription(String? channel) {
     if (channel == null && !allowGlobalChannel) return;
-    channel ??= GLOBAL_CHANNEL;
+    channel ??= kGlobalChannel;
 
     _streamListenerCount.putIfAbsent(channel, () => 0);
 
-    if (_streamListenerCount[channel] < 1) {
+    if (_streamListenerCount[channel]! < 1) {
       print(
           '[croupier] [multiplexed_stream] WARNING: Unregistered stream listener for $channel whilst streamListenerCount < 1; this indicates an error within the library.'
           'It has been handled gracefully but you should report this error to the developer as it could be indicative of an oversight or memory leak.');
     }
 
-    _streamListenerCount[channel] = max(0, _streamListenerCount[channel] - 1);
+    _streamListenerCount[channel] = max(0, _streamListenerCount[channel]! - 1);
   }
 
   Future<void> close() async {
@@ -163,16 +153,16 @@ class _MultiplexedStream<T> {
 }
 
 class _ChanneledEvent<T> {
-  String channel;
+  String? channel;
   T event;
 
   _ChanneledEvent(this.channel, this.event);
 }
 
 class _ChanneledError<T> {
-  String channel;
+  String? channel;
   Object error;
-  StackTrace stackTrace;
+  StackTrace? stackTrace;
 
   _ChanneledError(this.channel, this.error, [this.stackTrace]);
 }

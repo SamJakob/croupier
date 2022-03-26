@@ -7,67 +7,65 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
-import 'package:meta/meta.dart';
-
 part 'src/multiplexed_stream.dart';
 part 'src/croupier_reconnect_policy.dart';
 part 'src/croupier_impl.dart';
 
 enum ConnectionState {
-  CLOSED,
-  CONNECTING,
-  OPEN,
+  closed,
+  connecting,
+  open,
 }
 
 enum AuthenticationState {
-  UNAUTHENTICATED,
-  AUTHENTICATED,
+  unauthenticated,
+  authenticated,
 }
 
 enum SCEvent {
   /// Emitted whenever the socket initiates a connection to the server. This
   /// includes reconnects.
-  CONNECTING,
+  connecting,
 
   /// Emitted whenever the socket connection to the server is established and
   /// the SocketCluster handshake has completed. This includes reconnects.
-  READY,
+  ready,
 
   /// Emitted whenever the socket disconnects or becomes disconnected from the
   /// server. One can read the [SocketClusterClient.closeCode] and the
   /// [SocketClusterClient.closeReason] from the socket to determine the close
   /// code and reason.
-  DISCONNECT,
+  disconnect,
 
   /// Emitted when the socket is programmatically closed with a call to
   /// [SocketClusterClient.close]. This is triggered right before the socket
-  /// closes unlike [SCEvent.DISCONNECT] which is triggered right after the
+  /// closes unlike [SCEvent.disconnect] which is triggered right after the
   /// close is processed.
-  CLOSE,
+  close,
 
   /// Emitted whenever the authentication state changes. The new authentication
   /// state may be read from [SocketClusterClient.authState].
-  AUTH_STATE_CHANGE,
+  authStateChange,
 
   /// Emitted whenever the connection state changes. The new connection state
   /// may be read from [SocketClusterClient.state].
-  CONNECTION_STATE_CHANGE,
+  connectionStateChange,
 }
 
 extension SCEventName on SCEvent {
-  String get name {
+  String? get name {
     switch (this) {
-      case SCEvent.CONNECTING:
+      case SCEvent.connecting:
         return 'connecting';
-      case SCEvent.READY:
+      case SCEvent.ready:
         return 'ready';
-      case SCEvent.DISCONNECT:
+      case SCEvent.disconnect:
         return 'disconnect';
-      case SCEvent.CLOSE:
+      case SCEvent.close:
         return 'close';
-      case SCEvent.AUTH_STATE_CHANGE:
+      case SCEvent.authStateChange:
         return 'authStateChange';
-      case SCEvent.CONNECTION_STATE_CHANGE:
+      case SCEvent.connectionStateChange:
         return 'connectionStateChange';
       default:
         return null;
@@ -93,7 +91,7 @@ abstract class SocketClusterClient {
 
   /// A map of key-value pairs which will be used as the query parameters for
   /// the initial HTTP handshake which will initiate the WebSocket connection.
-  Map<String, String> get query;
+  Map<String, String>? get query;
 
   /// Returns the computed URL that the WebSocket client will connect to.
   String get url;
@@ -101,28 +99,28 @@ abstract class SocketClusterClient {
   /// The number of milliseconds to wait whilst attempting a connection to the
   /// server.
   /// Defaults to 20000 (20s).
-  int connectTimeout;
+  late int connectTimeout;
 
   /// The number of milliseconds to wait for the response to an invoke action.
   /// Defaults to 10000 (10s).
-  int ackTimeout;
+  late int ackTimeout;
 
   /// The auto-reconnect policy to adhere to if the connection to the socket
   /// server fails. Refer to [ReconnectPolicy] for defaults, etc.
-  ReconnectPolicy reconnectPolicy;
+  late ReconnectPolicy reconnectPolicy;
 
   /// The list of sub-protocols to pass to the WebSocket server on connect.
-  List<String> protocols;
+  List<String>? protocols;
 
   /// The list of headers to pass to the WebSocket server on connect.
-  Map<String, dynamic> headers;
+  Map<String, dynamic>? headers;
 
   /// The id of the socket connection. This is `null` initially and will change
   /// each time a new underlying connection is made.
-  String get id;
+  String? get id;
 
   /// The id of the socket client. This does not change between connections.
-  String get clientId;
+  String? get clientId;
 
   /// Changes the authentication token currently associated with the socket.
   /// Set this to `null` to indicate that no token should be associated with
@@ -138,29 +136,29 @@ abstract class SocketClusterClient {
   /// The interval in milliseconds between pings, as defined by the server upon
   /// handshaking. This will initially be null, until the handshake is complete
   /// and the value has been received from the server.
-  int get pingInterval;
+  int? get pingInterval;
 
   /// Gets the close code from the underlying WebSocket which is set when the
   /// WebSocket is closed. If there is no close code available, this property
   /// will be [null].
-  int get closeCode;
+  int? get closeCode;
 
   /// Gets the close reason from the underlying WebSocket which is set when the
   /// WebSocket is closed. If there is no close reason available, this property
   /// will be [null].
-  String get closeReason;
+  String? get closeReason;
 
   factory SocketClusterClient({
-    @required String hostname,
+    required String hostname,
     bool secure = false,
-    int port,
+    int? port,
     String path = '/socketcluster/',
-    Map<String, String> query,
+    Map<String, String>? query,
     int connectTimeout = 20000,
     int ackTimeout = 10000,
     ReconnectPolicy reconnectPolicy = const ReconnectPolicy(),
-    String authToken,
-    String clientId,
+    String? authToken,
+    String? clientId,
   }) =>
       _SocketClusterClientImpl(
         hostname: hostname,
@@ -269,7 +267,7 @@ class Options {
   final bool force;
   final bool cloneData;
   final bool expectResponse;
-  final int ackTimeout;
+  final int? ackTimeout;
   final bool noTimeout;
 
   const Options({
@@ -281,11 +279,11 @@ class Options {
   });
 
   Options copyWith({
-    bool force,
-    bool cloneData,
-    bool expectResponse,
-    int ackTimeout,
-    bool noTimeout,
+    bool? force,
+    bool? cloneData,
+    bool? expectResponse,
+    int? ackTimeout,
+    bool? noTimeout,
   }) =>
       Options(
         force: force ?? this.force,
@@ -313,12 +311,15 @@ class NetworkError extends Error {
 }
 
 class SocketMessageError extends Error {
-  final String name;
-  final String message;
+  final String? name;
+  final String? message;
   final dynamic data;
-  SocketMessageError(this.data, {this.name, this.message});
+  SocketMessageError(
+    this.data, {
+    this.name,
+    this.message,
+  });
 
   @override
-  String toString() =>
-      'Request Error:${name != null ? ' $name' : ''} ${message ?? data}';
+  String toString() => 'Request Error:${name != null ? ' $name' : ''} ${message ?? data}';
 }

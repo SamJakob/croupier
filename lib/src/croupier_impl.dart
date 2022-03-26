@@ -25,8 +25,8 @@ class _SocketClusterClientImpl implements SocketClusterClient {
   final String _path;
 
   @override
-  Map<String, String> get query => _query;
-  final Map<String, String> _query;
+  Map<String, String>? get query => _query;
+  final Map<String, String>? _query;
 
   @override
   String get url => _url;
@@ -42,51 +42,51 @@ class _SocketClusterClientImpl implements SocketClusterClient {
   ReconnectPolicy reconnectPolicy;
 
   @override
-  List<String> protocols;
+  List<String>? protocols;
 
   @override
-  Map<String, dynamic> headers;
+  Map<String, dynamic>? headers;
 
   @override
-  String get id => _id;
-  String _id;
+  String? get id => _id;
+  String? _id;
 
   @override
-  String get clientId => _clientId;
-  final String _clientId;
+  String? get clientId => _clientId;
+  final String? _clientId;
 
   @override
   ConnectionState get state => __state;
-  ConnectionState __state = ConnectionState.CLOSED;
+  ConnectionState __state = ConnectionState.closed;
   // Internal setter for connection state, to emit the relevant event.
   set _state(ConnectionState _state) {
     __state = _state;
-    _emit(SCEvent.CONNECTION_STATE_CHANGE);
+    _emit(SCEvent.connectionStateChange);
   }
 
   @override
   AuthenticationState get authState => __authState;
-  AuthenticationState __authState = AuthenticationState.UNAUTHENTICATED;
+  AuthenticationState __authState = AuthenticationState.unauthenticated;
   // Internal setter for connection state, to emit the relevant event.
   set _authState(AuthenticationState _authState) {
     __authState = _authState;
   }
 
   @override
-  int get pingInterval => _pingInterval;
-  int _pingInterval;
+  int? get pingInterval => _pingInterval;
+  int? _pingInterval;
 
-  String _authToken;
+  String? _authToken;
   @override
   set authToken(String authToken) {
     _authToken = authToken;
   }
 
   @override
-  int get closeCode => _socket?.closeCode;
+  int? get closeCode => _socket?.closeCode;
 
   @override
-  String get closeReason => _socket?.closeReason;
+  String? get closeReason => _socket?.closeReason;
 
   //**************************************************************************//
   //**************************************************************************//
@@ -94,19 +94,16 @@ class _SocketClusterClientImpl implements SocketClusterClient {
   // Private implementation details.
 
   /// The current call ID, usually implemented as a counter.
-  int _cid;
+  int _cid = -1;
 
   /// The number of attempts that have been made to reconnect to the server
   /// since the connection was last lost.
-  int _reconnectAttemptsMade;
+  int _reconnectAttemptsMade = 0;
 
   /// The interval to wait before next attempting to reconnect based on
   /// the current [reconnectPolicy] and the number of [_reconnectAttemptsMade].
   int getReconnectIntervalFor(int attemptsMade) {
-    return ((reconnectPolicy.initialDelay +
-                    (reconnectPolicy.randomness * Random().nextDouble()))
-                .round() *
-            pow(reconnectPolicy.multiplier, attemptsMade))
+    return ((reconnectPolicy.initialDelay + (reconnectPolicy.randomness * Random().nextDouble())).round() * pow(reconnectPolicy.multiplier, attemptsMade))
         .round();
   }
 
@@ -119,32 +116,32 @@ class _SocketClusterClientImpl implements SocketClusterClient {
   // Interface with WebSocket.
 
   /// The underlying WebSocket connection.
-  WebSocket _socket;
+  WebSocket? _socket;
 
-  _MultiplexedStream _eventsMultiplex;
-  _MultiplexedStream _receiveMultiplex;
-  _MultiplexedStream _invokeMultiplex;
+  _MultiplexedStream? _eventsMultiplex;
+  _MultiplexedStream? _receiveMultiplex;
+  _MultiplexedStream? _invokeMultiplex;
   //_MultiplexedStream _channelDemux;
 
   //**************************************************************************//
   //**************************************************************************//
 
   _SocketClusterClientImpl({
-    @required String hostname,
+    required String hostname,
     bool secure = false,
-    int port,
+    int? port,
     String path = '/socketcluster/',
-    Map<String, String> query,
+    Map<String, String>? query,
     this.connectTimeout = 20000,
     this.ackTimeout = 10000,
     this.reconnectPolicy = const ReconnectPolicy(),
     this.protocols,
     this.headers,
-    String authToken,
-    String clientId,
+    String? authToken,
+    String? clientId,
   })  : _hostname = hostname,
         _secure = secure,
-        _port = port,
+        _port = port ?? (secure ? 443 : 80),
         _path = path,
         _query = query,
         _url = Uri(
@@ -157,14 +154,14 @@ class _SocketClusterClientImpl implements SocketClusterClient {
         _authToken = authToken,
         _clientId = clientId,
         _expectedResponses = {},
-        _outboundBuffer = Queue<Map<String, dynamic>>(),
+        _outboundBuffer = ListQueue<Map<String, dynamic>>(),
         _eventsMultiplex = _MultiplexedStream(allowGlobalChannel: false),
         _receiveMultiplex = _MultiplexedStream(),
         _invokeMultiplex = _MultiplexedStream();
 
   @override
   Future connect() async {
-    if (__state != ConnectionState.CLOSED) {
+    if (__state != ConnectionState.closed) {
       return Future.error(StateError(
         "Socket already open. This error occurs when you call .connect() on a socket that's already open.",
       ));
@@ -181,8 +178,8 @@ class _SocketClusterClientImpl implements SocketClusterClient {
     while (!_connected) {
       _cid = -1;
       _reconnectAttemptsMade = 0;
-      _state = ConnectionState.CONNECTING;
-      _emit(SCEvent.CONNECTING);
+      _state = ConnectionState.connecting;
+      _emit(SCEvent.connecting);
 
       try {
         _socket = await (WebSocket.connect(
@@ -191,8 +188,7 @@ class _SocketClusterClientImpl implements SocketClusterClient {
           headers: headers,
         ).timeout(Duration(milliseconds: connectTimeout), onTimeout: () {
           _onSocketClose();
-          throw ConnectTimeoutError(
-              'Connect timed out after ${connectTimeout}ms');
+          throw ConnectTimeoutError('Connect timed out after ${connectTimeout}ms');
         }));
 
         _connected = true;
@@ -201,7 +197,7 @@ class _SocketClusterClientImpl implements SocketClusterClient {
         continue;
       }
 
-      _socket.listen(
+      _socket!.listen(
         _onSocketMessage,
         onError: _onSocketError,
         onDone: _onSocketClose,
@@ -212,7 +208,7 @@ class _SocketClusterClientImpl implements SocketClusterClient {
     }
   }
 
-  void _onSocketOpen() async {
+  Future<void> _onSocketOpen() async {
     var status = await invoke(
       '#handshake',
       {'authToken': _authToken},
@@ -222,15 +218,15 @@ class _SocketClusterClientImpl implements SocketClusterClient {
     _id = status['id'];
     _pingInterval = status['pingTimeout'];
     if (status['isAuthenticated']) {
-      _authState = AuthenticationState.AUTHENTICATED;
+      _authState = AuthenticationState.authenticated;
     } else {
-      _authState = AuthenticationState.UNAUTHENTICATED;
+      _authState = AuthenticationState.unauthenticated;
       _authToken = null;
     }
     _reconnectAttemptsMade = 0;
 
-    _state = ConnectionState.OPEN;
-    _emit(SCEvent.READY);
+    _state = ConnectionState.open;
+    _emit(SCEvent.ready);
     _flushOutboundBuffer();
   }
 
@@ -246,9 +242,9 @@ class _SocketClusterClientImpl implements SocketClusterClient {
 
     // Handle list
     if (message is List) {
-      message.forEach((element) {
+      for (var element in message) {
         _onSocketMessage(element);
-      });
+      }
 
       return;
     }
@@ -270,7 +266,7 @@ class _SocketClusterClientImpl implements SocketClusterClient {
       if (packet['rid'] != null) {
         if (_expectedResponses.containsKey(packet['rid'])) {
           if (packet['error'] != null) {
-            _expectedResponses[packet['rid']].completeError(
+            _expectedResponses[packet['rid']]!.completeError(
               SocketMessageError(
                 packet['error'],
                 name: packet['error']['name'],
@@ -278,7 +274,7 @@ class _SocketClusterClientImpl implements SocketClusterClient {
               ),
             );
           } else {
-            _expectedResponses[packet['rid']].complete(packet['data']);
+            _expectedResponses[packet['rid']]!.complete(packet['data']);
           }
         }
 
@@ -293,13 +289,15 @@ class _SocketClusterClientImpl implements SocketClusterClient {
     }
   }
 
-  void _onSocketError(Object error, [StackTrace stackTrace]) {}
+  void _onSocketError(Object error, [StackTrace? stackTrace]) {}
 
-  void _onSocketClose() {
-    var code = _socket.closeCode;
-    _emit(SCEvent.DISCONNECT);
+  Future<void> _onSocketClose() async {
+    var code = _socket!.closeCode;
+    _emit(SCEvent.disconnect);
 
     if (reconnectPolicy.autoReconnect) {
+      if (code == null) return await _reconnectDelay();
+
       // 1005 - close without status
       // 4000 - server ping timeout
       // 4001 - client pong timeout
@@ -309,20 +307,20 @@ class _SocketClusterClientImpl implements SocketClusterClient {
         // the client wakes up after a period of inactivity - in which case
         // we want to restore the connection ASAP.
         if (code == 1005 || code == 4000 || code == 4001) {
-          return _reconnectDelay(0);
+          return await _reconnectDelay(0);
         }
 
-        return _reconnectDelay();
+        return await _reconnectDelay();
       }
     }
   }
 
-  void _reconnectDelay([int initialDelay]) async {
+  Future<void> _reconnectDelay([int? initialDelay]) async {
     // 1. Compute the timeout.
     var timeout = initialDelay;
     if (timeout == null) {
       if (_reconnectAttemptsMade > 0) {
-        getReconnectIntervalFor(_reconnectAttemptsMade);
+        timeout = getReconnectIntervalFor(_reconnectAttemptsMade);
       } else {
         timeout = 0;
       }
@@ -332,29 +330,29 @@ class _SocketClusterClientImpl implements SocketClusterClient {
 
     // 2. Attempt to reconnect after awaiting the timeout
     await Future.delayed(Duration(milliseconds: timeout));
-    // connect
+    await connect();
 
     // 3. Increment the number of attempts made to reconnect to the server.
     _reconnectAttemptsMade++;
   }
 
   void _cleanUp() {
-    _authState = AuthenticationState.UNAUTHENTICATED;
+    _authState = AuthenticationState.unauthenticated;
 
     _outboundBuffer.clear();
-    _state = ConnectionState.CLOSED;
+    _state = ConnectionState.closed;
 
     //_channelEventDemux.close();
     //_channelDataDemux.close();
     //_receiverDemux.close();
 
-    _eventsMultiplex.close();
+    _eventsMultiplex?.close();
     _eventsMultiplex = null;
 
-    _receiveMultiplex.close();
+    _receiveMultiplex?.close();
     _receiveMultiplex = null;
 
-    _invokeMultiplex.close();
+    _invokeMultiplex?.close();
     _invokeMultiplex = null;
   }
 
@@ -365,10 +363,10 @@ class _SocketClusterClientImpl implements SocketClusterClient {
 
   @override
   void send(String data) {
-    if (state != ConnectionState.OPEN) {
+    if (state != ConnectionState.open) {
       close(1005);
     } else {
-      _socket.add(data);
+      _socket!.add(data);
     }
   }
 
@@ -395,8 +393,8 @@ class _SocketClusterClientImpl implements SocketClusterClient {
   }
 
   @override
-  StreamSubscription on(SCEvent event, Function callback) {
-    return _eventsMultiplex.subscribeToChannel(event.name, (event) {
+  StreamSubscription on(SCEvent event, Function? callback) {
+    return _eventsMultiplex!.subscribeToChannel(event.name, (event) async {
       try {
         if (callback != null) callback();
       } catch (ex, stacktrace) {
@@ -408,8 +406,8 @@ class _SocketClusterClientImpl implements SocketClusterClient {
   }
 
   @override
-  StreamSubscription onRaw(Function(String data) callback) {
-    return _eventsMultiplex.subscribeToChannel('raw', (event) {
+  StreamSubscription onRaw(Function(String data)? callback) {
+    return _eventsMultiplex!.subscribeToChannel('raw', (event) async {
       try {
         if (callback != null) callback(event.event.toString());
       } catch (ex, stacktrace) {
@@ -421,8 +419,8 @@ class _SocketClusterClientImpl implements SocketClusterClient {
   }
 
   @override
-  StreamSubscription onMessage(Function(String data) callback) {
-    return _eventsMultiplex.subscribeToChannel('message', (event) {
+  StreamSubscription onMessage(Function(String data)? callback) {
+    return _eventsMultiplex!.subscribeToChannel('message', (event) async {
       try {
         if (callback != null) callback(event.event.toString());
       } catch (ex, stacktrace) {
@@ -436,11 +434,11 @@ class _SocketClusterClientImpl implements SocketClusterClient {
   @override
   StreamSubscription registerReceiver(
     String name,
-    Function(dynamic data) callback,
+    Function(dynamic data)? callback,
   ) {
-    return _receiveMultiplex.subscribeToChannel(name, (
+    return _receiveMultiplex!.subscribeToChannel(name, (
       dynamic event,
-    ) {
+    ) async {
       try {
         if (callback != null) callback(event.event);
       } catch (ex, stacktrace) {
@@ -454,9 +452,9 @@ class _SocketClusterClientImpl implements SocketClusterClient {
   @override
   StreamSubscription registerProcedure(
     String name,
-    Function(dynamic data) callback,
+    Function(dynamic data)? callback,
   ) {
-    return _invokeMultiplex.subscribeToChannel(name, (event) async {
+    return _invokeMultiplex!.subscribeToChannel(name, (event) async {
       int rid = event.event['cid'];
 
       try {
@@ -479,13 +477,13 @@ class _SocketClusterClientImpl implements SocketClusterClient {
   }
 
   @override
-  Future<void> close([int code, String reason]) async {
-    if (__state != ConnectionState.CLOSED) {
-      _emit(SCEvent.CLOSE);
+  Future<void> close([int? code, String? reason]) async {
+    if (__state != ConnectionState.closed) {
+      _emit(SCEvent.close);
       _clearExpectedResponses();
 
       // Close the socket.
-      if (_socket != null) await _socket.close(code ?? 1000, reason);
+      if (_socket != null) await _socket!.close(code ?? 1000, reason);
 
       // Allow socket time to close and trigger events before cleaning up.
       await Future.delayed(Duration(milliseconds: 10));
@@ -501,18 +499,18 @@ class _SocketClusterClientImpl implements SocketClusterClient {
   // Protocol Implementation
 
   Future<dynamic> _processOutboundEvent(
-    String event,
+    String? event,
     dynamic data, [
     Options options = const Options(),
-    int rid,
+    int? rid,
   ]) async {
-    if (state == ConnectionState.CLOSED) {
+    if (state == ConnectionState.closed) {
       await connect();
     }
 
     data ??= {};
 
-    var cid;
+    int? cid;
     if (options.expectResponse) cid = ++_cid;
 
     var outboundPacket = <String, dynamic>{
@@ -522,13 +520,13 @@ class _SocketClusterClientImpl implements SocketClusterClient {
       'data': (data is Map && options.cloneData) ? {...data} : data,
     };
 
-    var responseFuture;
+    Future? responseFuture;
 
     // Add an 'expected response' for this call ID to the expected responses
     // array if the response is, in fact, expected.
     if (options.expectResponse) {
       var outboundEventCompleter = Completer();
-      _expectedResponses[cid] = outboundEventCompleter;
+      _expectedResponses[cid!] = outboundEventCompleter;
       responseFuture = outboundEventCompleter.future;
       if (!options.noTimeout) {
         responseFuture = responseFuture.timeout(Duration(
@@ -541,7 +539,7 @@ class _SocketClusterClientImpl implements SocketClusterClient {
     _outboundBuffer.add(outboundPacket);
 
     // ...and flush the queue if the connection is still good.
-    if (state == ConnectionState.OPEN || options.force) {
+    if (state == ConnectionState.open || options.force) {
       _flushOutboundBuffer();
     }
 
@@ -555,7 +553,7 @@ class _SocketClusterClientImpl implements SocketClusterClient {
   void _flushOutboundBuffer() {
     _outboundBuffer.removeWhere((outboundPacket) {
       try {
-        _socket.add(jsonEncode(outboundPacket));
+        _socket!.add(jsonEncode(outboundPacket));
         return true;
       } catch (er) {
         return false;
@@ -565,11 +563,11 @@ class _SocketClusterClientImpl implements SocketClusterClient {
 
   void _clearExpectedResponses() async {
     for (var expectedResponseKey in _expectedResponses.keys) {
-      var expectedResponse = _expectedResponses[expectedResponseKey];
+      var expectedResponse = _expectedResponses[expectedResponseKey]!;
       if (!expectedResponse.isCompleted) {
         expectedResponse.completeError(
           NetworkError(
-            'Event #${expectedResponseKey} was aborted.',
+            'Event #$expectedResponseKey was aborted.',
           ),
         );
       }
@@ -577,18 +575,18 @@ class _SocketClusterClientImpl implements SocketClusterClient {
   }
 
   void _emit(SCEvent event) {
-    _eventsMultiplex.addToChannel(event.name, null);
+    _eventsMultiplex!.addToChannel(event.name, null);
   }
 
   void _emitEvent(String event, [dynamic data]) {
-    _eventsMultiplex.addToChannel(event, data);
+    _eventsMultiplex!.addToChannel(event, data);
   }
 
   void _emitReceive(String event, dynamic data) {
-    _receiveMultiplex.addToChannel(event, data);
+    _receiveMultiplex!.addToChannel(event, data);
   }
 
   void _emitInvoke(String event, dynamic data) {
-    _invokeMultiplex.addToChannel(event, data);
+    _invokeMultiplex!.addToChannel(event, data);
   }
 }

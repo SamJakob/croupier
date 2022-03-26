@@ -23,7 +23,7 @@ void main() {
   });
 
   group('Basic tests', () {
-    SocketClusterClient client;
+    late SocketClusterClient client;
 
     setUpAll(() {
       client = SocketClusterClient(
@@ -44,13 +44,12 @@ void main() {
     test('Client closes after explicit connect call', () async {
       await client.close();
 
-      expect(client.authState, equals(AuthenticationState.UNAUTHENTICATED));
-      expect(client.state, equals(ConnectionState.CLOSED));
+      expect(client.authState, equals(AuthenticationState.unauthenticated));
+      expect(client.state, equals(ConnectionState.closed));
     });
 
     test('Client connects implicitly', () {
-      expect(client.invoke('unknownProc'),
-          throwsA(TypeMatcher<TimeoutException>()));
+      expect(client.invoke('unknownProc'), throwsA(TypeMatcher<TimeoutException>()));
     });
 
     test('Client reconnects', () async {
@@ -66,13 +65,13 @@ void main() {
     test('Client closes after implicit connect call', () async {
       await client.close();
 
-      expect(client.authState, equals(AuthenticationState.UNAUTHENTICATED));
-      expect(client.state, equals(ConnectionState.CLOSED));
+      expect(client.authState, equals(AuthenticationState.unauthenticated));
+      expect(client.state, equals(ConnectionState.closed));
     });
   });
 
   group('Remote Procedure Calls (RPC)', () {
-    SocketClusterClient client;
+    late SocketClusterClient client;
 
     setUpAll(() {
       client = SocketClusterClient(
@@ -92,14 +91,13 @@ void main() {
         fail("Bad procedure call didn't throw an exception.");
       } catch (ex) {
         expect(ex, TypeMatcher<SocketMessageError>());
-        expect(ex.name, equals('BadCustomError'));
-        expect(ex.message, equals('Server failed to execute the procedure'));
+        expect((ex as SocketMessageError).name, equals('BadCustomError'));
+        expect((ex).message, equals('Server failed to execute the procedure'));
       }
     });
 
     test('Unknown procedure call', () {
-      expect(client.invoke('unknownProc'),
-          throwsA(TypeMatcher<TimeoutException>()));
+      expect(client.invoke('unknownProc'), throwsA(TypeMatcher<TimeoutException>()));
     });
 
     tearDownAll(() async {
@@ -108,7 +106,7 @@ void main() {
   });
 
   group('Local Procedure Calls (Server -> Client)', () {
-    SocketClusterClient client;
+    late SocketClusterClient client;
 
     setUpAll(() async {
       client = SocketClusterClient(
@@ -130,8 +128,7 @@ void main() {
 
       client.transmit('triggerTestRecv');
 
-      expect(completer.future,
-          completion(equals('4aa78d81f5ff8f60de71c42c86a80b36')));
+      expect(completer.future, completion(equals('4aa78d81f5ff8f60de71c42c86a80b36')));
     });
 
     test('Local invoke', () {
@@ -159,7 +156,7 @@ void main() {
   });
 
   group('Raw data', () {
-    SocketClusterClient client;
+    late SocketClusterClient client;
 
     setUpAll(() async {
       client = SocketClusterClient(
