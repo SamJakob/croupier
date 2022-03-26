@@ -21,16 +21,13 @@ jobs:
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       - name: Setup Dart Action
-        # You may pin to the exact commit or the version.
-        # uses: cedx/setup-dart@6ad18569ab4db516faa39d8a7efa6f4b8d1198f7
-        uses: cedx/setup-dart@v2.5.0
+        uses: dart-lang/setup-dart@v1
         with:
-          # The processor architecture of the Dart SDK ("x64", "ia32", "arm64" or "arm64").
+          # The processor architecture of the Dart SDK
+          # ("x64", "ia32", "arm64" or "arm64").
           architecture: x64
           # The release channel of the Dart SDK ("stable", "beta" or "dev").
-          release-channel: stable
-          # The version of the Dart SDK.
-          version: latest
+          sdk: stable
       
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v2
