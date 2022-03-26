@@ -321,5 +321,6 @@ class SocketMessageError extends Error {
   });
 
   @override
-  String toString() => 'Request Error:${name != null ? ' $name' : ''} ${message ?? data}';
+  String toString() =>
+      'Request Error:${name != null ? ' $name' : ''} ${message ?? data}';
 }

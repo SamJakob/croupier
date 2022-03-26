@@ -19,9 +19,14 @@ class _MultiplexedStream<T> {
 
   final bool allowGlobalChannel;
 
-  int getListenerCountForChannel(String channel) => _streamListenerCount.containsKey(channel) ? _streamListenerCount[channel]! : 0;
+  int getListenerCountForChannel(String channel) =>
+      _streamListenerCount.containsKey(channel)
+          ? _streamListenerCount[channel]!
+          : 0;
 
-  int getTotalListenerCount() => _streamListenerCount.values.isEmpty ? 0 : _streamListenerCount.values.reduce((sum, element) => sum + element);
+  int getTotalListenerCount() => _streamListenerCount.values.isEmpty
+      ? 0
+      : _streamListenerCount.values.reduce((sum, element) => sum + element);
 
   /// Creates a multiplexed stream with no existing [StreamSink] sources,
   /// allowing for data to be added to the stream directly using [add],
@@ -64,7 +69,8 @@ class _MultiplexedStream<T> {
 
   /// Adds an [error] to the specified [channel] meaning only subscribers for
   /// the specified channel will receive this error.
-  void addErrorToChannel(String? channel, Object error, [StackTrace? stackTrace]) {
+  void addErrorToChannel(String? channel, Object error,
+      [StackTrace? stackTrace]) {
     if (channel == null && !allowGlobalChannel) return;
 
     if (channel != null) {
@@ -76,7 +82,10 @@ class _MultiplexedStream<T> {
 
   /// Subscribes to the global event stream meaning only global events will be
   /// forwarded to this subscription.
-  StreamSubscription subscribe(Future<void> Function(dynamic event) onData, {Function? onError, Future<void> Function()? onDone, bool? cancelOnError}) {
+  StreamSubscription subscribe(Future<void> Function(dynamic event) onData,
+      {Function? onError,
+      Future<void> Function()? onDone,
+      bool? cancelOnError}) {
     return subscribeToChannel(
       null,
       onData,
@@ -89,14 +98,18 @@ class _MultiplexedStream<T> {
   /// Subscribes to the event stream for the specified [channel], meaning global
   /// events **and** the events for the specified channel will be forwarded
   /// to this subscription.
-  StreamSubscription subscribeToChannel(String? channel, Future<void> Function(dynamic event) onData,
-      {Function? onError, Future<void> Function()? onDone, bool? cancelOnError}) {
+  StreamSubscription subscribeToChannel(
+      String? channel, Future<void> Function(dynamic event) onData,
+      {Function? onError,
+      Future<void> Function()? onDone,
+      bool? cancelOnError}) {
     _registerStreamSubscription(channel);
 
     return _streamController.stream.listen(
       (event) async {
         if (event is _ChanneledEvent) {
-          if (event.channel == channel || (event.channel == null && allowGlobalChannel)) {
+          if (event.channel == channel ||
+              (event.channel == null && allowGlobalChannel)) {
             await onData(event);
           }
 
@@ -107,7 +120,8 @@ class _MultiplexedStream<T> {
       },
       onError: (error, [StackTrace? stackTrace]) async {
         if (error is _ChanneledError) {
-          if (error.channel == channel || (error.channel == null && allowGlobalChannel)) {
+          if (error.channel == channel ||
+              (error.channel == null && allowGlobalChannel)) {
             if (onError != null) await onError(error, error.stackTrace);
           }
 

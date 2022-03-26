@@ -49,7 +49,8 @@ void main() {
     });
 
     test('Client connects implicitly', () {
-      expect(client.invoke('unknownProc'), throwsA(TypeMatcher<TimeoutException>()));
+      expect(client.invoke('unknownProc'),
+          throwsA(TypeMatcher<TimeoutException>()));
     });
 
     test('Client reconnects', () async {
@@ -97,7 +98,8 @@ void main() {
     });
 
     test('Unknown procedure call', () {
-      expect(client.invoke('unknownProc'), throwsA(TypeMatcher<TimeoutException>()));
+      expect(client.invoke('unknownProc'),
+          throwsA(TypeMatcher<TimeoutException>()));
     });
 
     tearDownAll(() async {
@@ -128,7 +130,8 @@ void main() {
 
       client.transmit('triggerTestRecv');
 
-      expect(completer.future, completion(equals('4aa78d81f5ff8f60de71c42c86a80b36')));
+      expect(completer.future,
+          completion(equals('4aa78d81f5ff8f60de71c42c86a80b36')));
     });
 
     test('Local invoke', () {

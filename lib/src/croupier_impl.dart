@@ -103,7 +103,10 @@ class _SocketClusterClientImpl implements SocketClusterClient {
   /// The interval to wait before next attempting to reconnect based on
   /// the current [reconnectPolicy] and the number of [_reconnectAttemptsMade].
   int getReconnectIntervalFor(int attemptsMade) {
-    return ((reconnectPolicy.initialDelay + (reconnectPolicy.randomness * Random().nextDouble())).round() * pow(reconnectPolicy.multiplier, attemptsMade))
+    return ((reconnectPolicy.initialDelay +
+                    (reconnectPolicy.randomness * Random().nextDouble()))
+                .round() *
+            pow(reconnectPolicy.multiplier, attemptsMade))
         .round();
   }
 
@@ -188,7 +191,8 @@ class _SocketClusterClientImpl implements SocketClusterClient {
           headers: headers,
         ).timeout(Duration(milliseconds: connectTimeout), onTimeout: () {
           _onSocketClose();
-          throw ConnectTimeoutError('Connect timed out after ${connectTimeout}ms');
+          throw ConnectTimeoutError(
+              'Connect timed out after ${connectTimeout}ms');
         }));
 
         _connected = true;
